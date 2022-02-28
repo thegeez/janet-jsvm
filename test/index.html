@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8" />
+    <title>TEST - Js VM</title>
+
+  </head>
+  <body>
+    <h1>Test center</h1>
+    <a href="/test">all</a><br/>
+    <script type="application/javascript">
+      var tests_arr = TESTS_ARR_PLACEHOLDER;
+      window.tests_arr = tests_arr;
+    </script>
+    
+    <script src="../vm.js"></script>
+    <script type="application/javascript">
+      var tests_run = 0;
+      var tests_success = 0;
+
+      function run_single_test(test_names) {
+          let test_name;
+          if (test_names.length == 0) {
+              document.write("<a href=\"/test\">all</a>");
+              return;
+          } else {
+              test_name = test_names[0];
+          }
+
+          tests_run++;
+          const test_link = "<a href=\"/test?single=" + test_name + "\">" + test_name + "</a>";
+
+          try {
+              const test_uimage = window[""+test_name+"_uimage"];
+
+              console.log("have uimage for",test_name);
+              console.log("have uimage length",test_uimage.length)
+              
+              const image = unmarshal(test_uimage);
+              const func_start = image.get(janet_symbol("test")).get(janet_keyword("value"));
+              vm_reset();
+              const fiber_start = janet_fiber(func_start);
+              console.log("fiber", fiber_start);
+              console.log("fiber_flag start", fiber_start);
+              janet_schedule_signal(fiber_start, null, JANET_SIGNAL_OK);
+
+              
+              setTimeout(function () { document.write(""+test_link+".."); }, 0); // need to doc.write in callback for it to show up
+              const done_callback = new Promise(function (resolve, reject) {
+                  console.log("AWAIT VM");
+                  janet_loop_with_callbacks(resolve,reject);
+              }).then(function () {
+                  console.log("AWAIT VM done");
+                  console.log("VM", VM);
+                  console.log("fiber starts at VM done: ", test_name, fiber_start);
+                  if (fiber_start.last_value == true) {
+                      tests_success++;
+                      document.write("...OK<br>");
+                  } else {
+                      document.write("...FAILED<br>");
+                  }
+              }).catch(function (error) {
+                  console.log("VM error in test:");
+                  console.error(error);
+                  document.write("...ERROR<br>");
+              }).finally(function (){
+                  document.title = "(" + tests_success + "/" + tests_run + ")";
+                  test_names.splice(0,1);
+                  run_single_test(test_names);
+              });
+              
+              // janet_loop();
+
+              // console.log("VM", VM);
+              // console.log("fiber starts at VM done: ", fiber_start);
+              
+              // // TODO ALSO check fiber.status == finished
+              // if (fiber_start.last_value == true) {
+              //     tests_success++;
+              //     document.write(test_link+"...OK<br>");
+              // } else {
+              //     document.write(test_link+"...FAILED<br>");
+              // }
+          } catch (err) {
+              console.error(err);
+              document.write(test_link+"...ERROR<br>");
+          }
+          
+          
+      }
+      for (const test_name of tests_arr){
+          document.write("<script src='test/test_compile/"+ test_name +".js'></scr"+"ipt>");
+          document.write("<script>const "+ test_name +"_uimage = uimage;console.log('test length' + uimage.length );window[\""+test_name+"\_uimage\"] = uimage;</scr"+"ipt>");
+
+      }
+
+      document.write("<script>run_single_test(['"+ tests_arr.join("','") +"']);</scr"+"ipt>");
+
+    </script>
+  </body>
+</html>
