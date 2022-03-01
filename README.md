@@ -94,6 +94,42 @@ Everything in a test in the `test/` directory should work. If it isn't in a test
 
 Open `http://localhost:8080/test`
 
+# Running Janet code
+- Create a Janet image from code with:
+`janet -c myfile.janet myfile.jimage`
+- Get the bytes from the image:
+```janet
+(string/join (map string (slurp "myfile.jimage")) ", ")
+=> "212, 4, ....., 0"
+```
+- Copy the image bytes into Javascript and run the vm:
+```
+<script src="vm.js"></script>
+<script type="application/javascript>
+const jimage_bytes = new Uint8Array([212, 4, ...., 0]);
+const jimage = unmarshal(jimage_bytes);
+// the image must have a function named 'test'
+const func_start = jimage.get(janet_symbol("test")).get(janet_keyword("value"));
+
+vm_reset();
+const fiber_start = janet_fiber(func_start);
+janet_schedule_signal(fiber_start, null, JANET_SIGNAL_OK);
+
+const done_callback = new Promise(function (resolve, reject) {
+  console.log("AWAIT VM");
+  janet_loop_with_callbacks(resolve,reject);
+}).then(function () {
+  console.log("AWAIT VM done");
+  console.log("VM", VM);
+  console.log("fiber starts at VM done: ", test_name, fiber_start);
+  console.log("start fiber last value: ", fiber_start.last_value);
+}).catch(function (error) {
+  console.log("VM error:");
+  console.error(error);
+})
+</script>
+```
+
 # License
 MIT, same as Janet
 
